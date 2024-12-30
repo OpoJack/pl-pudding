@@ -3,10 +3,17 @@
   "version": "1.0.50",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "bun run --watch src/index.ts"
+    "dev": "bun run --watch src/index.ts",
+    "migrate": "bun run db/migrations/run.ts"
   },
   "dependencies": {
-    "elysia": "latest"
+    "@elysiajs/cors": "^1.2.0",
+    "@elysiajs/jwt": "^1.2.0",
+    "@elysiajs/swagger": "^1.2.0",
+    "elysia": "latest",
+    "google-auth-library": "^9.15.0",
+    "google-spreadsheet": "^4.1.4",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "bun-types": "latest"
