@@ -1,6 +1,6 @@
 import { EbayClient } from "./client";
 import { OrderModel } from "../../db/models/order";
-import { mapEbayOrderToDb, mapEbayOrderItemToDb } from "./mapper";
+import { mapEbayOrderToDb, mapEbayOrderItemToDb } from "./mappers";
 import { config } from "../../config";
 import { db } from "../../db";
 

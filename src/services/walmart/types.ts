@@ -27,22 +27,15 @@ export const WalmartOrderSchema = z.object({
   customerOrderId: z.string(),
   customerEmailId: z.string(),
   orderDate: z.string(),
-  shippingInfo: z.object({
-    phone: z.string(),
-    estimatedDeliveryDate: z.string(),
-    estimatedShipDate: z.string(),
-    methodCode: z.string(),
-    postalAddress: AddressSchema,
-  }),
-  orderLines: z.object({
-    orderLine: z.array(WalmartOrderItemSchema),
-  }),
   orderStatus: z.object({
-    status: z.string(),
+    status: z.enum(["Created", "Acknowledged", "Shipped", "Delivered", "Cancelled", "Refund"]),
     statusQuantity: z.object({
       unitOfMeasurement: z.string(),
       amount: z.string(),
     }),
+  }),
+  orderLines: z.object({
+    orderLine: z.array(WalmartOrderItemSchema),
   }),
 });
 

@@ -9,5 +9,6 @@ export interface PNLRow {
   otherFees: number;
   shipping: number;
   cost: number;
-  profit: string;
+  profit: string | number;
+  shippingStatus: string;
 }

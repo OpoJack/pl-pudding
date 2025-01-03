@@ -20,7 +20,7 @@ export class EbayClient {
       return this.accessToken;
     }
 
-    const response = await fetch("https://api.ebay.com/identity/v1/oauth2/token", {
+    const response = await fetch("https://api.sandbox.ebay.com/identity/v1/oauth2/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -35,7 +35,8 @@ export class EbayClient {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to obtain eBay access token");
+      const error = await response.text();
+      throw new Error(`Failed to obtain eBay access token: ${error}`);
     }
 
     const data = await response.json();

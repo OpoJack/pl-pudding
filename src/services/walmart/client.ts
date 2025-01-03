@@ -45,11 +45,15 @@ export class WalmartClient {
 
   async getOrders(params: {
     createdStartDate?: string;
+    createdEndDate?: string;
     limit?: number;
     status?: string;
   }): Promise<WalmartOrder[]> {
     const token = await this.ensureToken();
-    const queryParams = new URLSearchParams(params as Record<string, string>);
+    const queryParams = new URLSearchParams({
+      ...(params as Record<string, string>),
+      limit: params.limit?.toString() || "100",
+    });
 
     const response = await fetch(`${this.baseUrl}/orders?${queryParams}`, {
       headers: {

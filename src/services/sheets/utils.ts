@@ -56,5 +56,6 @@ export function calculatePNLRow(
     shipping,
     cost,
     profit,
+    shippingStatus: shippingRecord?.status || "Unknown",
   };
 }

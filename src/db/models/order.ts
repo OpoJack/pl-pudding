@@ -110,4 +110,27 @@ export class OrderModel {
       raw_data: JSON.parse(result.raw_data as string),
     }));
   }
+
+  static async createOrderItem(
+    item: Omit<OrderItem, "id" | "created_at" | "updated_at">
+  ): Promise<string> {
+    const id = crypto.randomUUID();
+    const query = db.prepare(`
+      INSERT INTO order_items (
+        id, order_id, sku, title, quantity, unit_price, unit_cost
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    query.run(
+      id,
+      item.order_id,
+      item.sku,
+      item.title,
+      item.quantity,
+      item.unit_price,
+      item.unit_cost
+    );
+
+    return id;
+  }
 }
