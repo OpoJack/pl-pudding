@@ -1,91 +1,237 @@
 import { GoogleSheetsClient } from "../services/sheets/client";
 import { calculatePNLRow } from "../services/sheets/utils";
-import type { Order, OrderItem, ShippingRecord } from "../db/models/types";
+import type {
+  Order,
+  OrderItem,
+  OrderStatus,
+  PaymentStatus,
+  ShippingRecord,
+} from "../db/models/types";
+import { config } from "../config";
+import { ShipStationClient, ShopifyClient } from "../services";
+import { PNLRow } from "../services/sheets/types";
+import { mapShipstationStatus } from "../services/shipstation/mappers";
+import { mapShopifyStatus } from "../services/shopify/mappers";
 
-async function testSheetsIntegration() {
-  const client = new GoogleSheetsClient();
+async function testShopifyToSheets() {
+  const shopifyClient = new ShopifyClient(
+    `https://clippervault.myshopify.com/admin/api/2024-01`,
+    config.shopify.accessToken
+  );
 
-  const mockOrder: Order = {
-    id: "test-order-id",
-    platform: "shopify",
-    platform_order_id: "TEST-001",
-    order_date: new Date().toISOString(),
-    order_number: "TEST-001",
-    customer_email: "test@example.com",
-    order_status: "completed",
-    total_amount: 99.99,
-    shipping_amount: 7.5,
-    tax_amount: 5.0,
-    platform_fees: 2.9,
-    raw_data: {},
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  const mockOrderItem: OrderItem = {
-    id: "test-item-id",
-    order_id: mockOrder.id,
-    sku: "TEST-SKU-1",
-    title: "Test Product",
-    quantity: 1,
-    unit_price: 99.99,
-    unit_cost: 40.0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  const mockShippingRecord: ShippingRecord = {
-    id: "test-shipping-id",
-    order_id: mockOrder.id,
-    shipstation_id: null,
-    carrier: "USPS",
-    service: "Priority",
-    tracking_number: "test123",
-    status: "shipped",
-    shipping_cost: 7.5,
-    shipping_date: new Date().toISOString(),
-    delivery_date: null,
-    raw_data: {},
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
+  const sheetsClient = new GoogleSheetsClient();
+  const shipstationClient = new ShipStationClient(
+    config.shipstation.baseUrl,
+    config.shipstation.apiKey,
+    config.shipstation.apiSecret
+  );
 
   try {
-    // Create first test row using calculatePNLRow
-    const testRow1 = calculatePNLRow(mockOrder, mockOrderItem, mockShippingRecord, 2);
+    // Get Shopify orders
+    const orders = await shopifyClient.getOrders({
+      limit: 20,
+    });
 
-    // Create second test row with different platform and values
-    const mockOrder2 = {
-      ...mockOrder,
-      platform: "walmart" as const,
-      platform_order_id: "TEST-002",
-      total_amount: 149.99,
-    };
-    const mockOrderItem2 = {
-      ...mockOrderItem,
-      sku: "TEST-SKU-2",
-      unit_price: 149.99,
-      unit_cost: 60.0,
-    };
+    // Get ShipStation orders for the same period
+    const startDate = new Date(orders[orders.length - 1].created_at);
+    const endDate = new Date(orders[0].created_at);
+    const shipstationOrders = await shipstationClient.getOrders({
+      createDateStart: startDate.toISOString(),
+      createDateEnd: endDate.toISOString(),
+    });
 
-    const testRow2 = calculatePNLRow(mockOrder2, mockOrderItem2, mockShippingRecord, 3);
+    function mapPaymentStatus(status: string): PaymentStatus {
+      switch (status) {
+        case "paid":
+        case "partially_paid":
+          return "paid";
+        case "refunded":
+        case "partially_refunded":
+          return "refunded";
+        case "voided":
+          return "failed";
+        default:
+          return "pending";
+      }
+    }
 
-    // Add both rows
-    await client.addOrUpdateRows([testRow1, testRow2]);
-    console.log("Initial rows added successfully");
+    function mapOrderStatus(status: string | null): OrderStatus {
+      switch (status) {
+        case "fulfilled":
+          return "shipped";
+        case "processing":
+          return "processing";
+        case "delivered":
+          return "delivered";
+        case "cancelled":
+          return "cancelled";
+        case "refunded":
+          return "refunded";
+        default:
+          return "pending";
+      }
+    }
 
-    // Update first row with new cost
-    const updatedOrderItem = {
-      ...mockOrderItem,
-      unit_cost: 35.0,
-    };
-    const updatedRow = calculatePNLRow(mockOrder, updatedOrderItem, mockShippingRecord, 2);
+    const pnlRows: PNLRow[] = orders.flatMap((shopifyOrder) => {
+      // Find corresponding ShipStation order
+      const shipstationOrder = shipstationOrders.find(
+        (ss) => ss.orderNumber === shopifyOrder.order_number.toString()
+      );
 
-    await client.addOrUpdateRows([updatedRow]);
-    console.log("Row update successful");
+      const order: Order = {
+        id: shopifyOrder.id.toString(),
+        platform: "shopify",
+        platform_order_id: shopifyOrder.order_number.toString(),
+        order_date: shopifyOrder.created_at,
+        order_number: shopifyOrder.order_number.toString(),
+        customer_email: null,
+        order_status: shipstationOrder
+          ? mapShipstationStatus(shipstationOrder.orderStatus)
+          : mapShopifyStatus(shopifyOrder.fulfillment_status),
+        total_amount: parseFloat(shopifyOrder.total_price),
+        shipping_amount: shipstationOrder?.shippingAmount || 0,
+        tax_amount: 0,
+        platform_fees: 0,
+        raw_data: shopifyOrder,
+        created_at: shopifyOrder.created_at,
+        updated_at: shopifyOrder.updated_at,
+        payment_status: mapPaymentStatus(shopifyOrder.financial_status),
+        payment_date: null,
+      };
+
+      return shopifyOrder.line_items.map((item) => {
+        const orderItem: OrderItem = {
+          id: item.id.toString(),
+          order_id: order.id,
+          sku: item.sku || "",
+          title: item.title,
+          quantity: item.quantity,
+          unit_price: parseFloat(item.price),
+          unit_cost: 0,
+          created_at: shopifyOrder.created_at,
+          updated_at: shopifyOrder.updated_at,
+        };
+
+        const shippingRecord: ShippingRecord | undefined = shipstationOrder
+          ? {
+              id: shipstationOrder.orderId.toString(),
+              order_id: order.id,
+              shipstation_id: shipstationOrder.orderId.toString(),
+              carrier: shipstationOrder.carrierCode || null,
+              service: shipstationOrder.serviceCode || null,
+              tracking_number: "12345" || null,
+              status: shipstationOrder.orderStatus,
+              shipping_cost: shipstationOrder.shippingAmount,
+              shipping_date: shipstationOrder.shipDate || null,
+              delivery_date: null,
+              raw_data: shipstationOrder,
+              created_at: shipstationOrder.createDate,
+              updated_at: shipstationOrder.modifyDate,
+            }
+          : undefined;
+
+        return calculatePNLRow(order, orderItem, shippingRecord);
+      });
+    });
+
+    console.log("Sending to sheets:", pnlRows);
+    await sheetsClient.addOrUpdateRows(pnlRows);
+    console.log("Successfully wrote to Google Sheets");
   } catch (error) {
-    console.error("Test failed:", error);
+    console.error("Error:", error);
   }
 }
 
-testSheetsIntegration();
+testShopifyToSheets();
+
+// async function testShopifyToSheets() {
+//   const shopifyClient = new ShopifyClient(
+//     `https://clippervault.myshopify.com/admin/api/2024-01`,
+//     config.shopify.accessToken
+//   );
+
+//   const sheetsClient = new GoogleSheetsClient();
+//   try {
+//     const orders = await shopifyClient.getOrders({
+//       limit: 30,
+//     });
+
+//     const pnlRows: PNLRow[] = orders.flatMap((shopifyOrder) => {
+//       // Map Shopify order to our Order type
+//       function mapPaymentStatus(status: string): PaymentStatus {
+//         switch (status) {
+//           case "paid":
+//           case "partially_paid":
+//             return "paid";
+//           case "refunded":
+//           case "partially_refunded":
+//             return "refunded";
+//           case "voided":
+//             return "failed";
+//           default:
+//             return "pending";
+//         }
+//       }
+
+//       function mapOrderStatus(status: string | null): OrderStatus {
+//         switch (status) {
+//           case "fulfilled":
+//             return "shipped";
+//           case "processing":
+//             return "processing";
+//           case "delivered":
+//             return "delivered";
+//           case "cancelled":
+//             return "cancelled";
+//           case "refunded":
+//             return "refunded";
+//           default:
+//             return "pending";
+//         }
+//       }
+
+//       const order: Order = {
+//         id: shopifyOrder.id.toString(),
+//         platform: "shopify",
+//         platform_order_id: shopifyOrder.order_number.toString(),
+//         order_date: shopifyOrder.created_at,
+//         order_number: shopifyOrder.order_number.toString(),
+//         customer_email: null,
+//         order_status: mapOrderStatus(shopifyOrder.fulfillment_status),
+//         payment_status: mapPaymentStatus(shopifyOrder.financial_status),
+//         payment_date: null,
+//         total_amount: parseFloat(shopifyOrder.total_price),
+//         shipping_amount: 0,
+//         tax_amount: 0,
+//         platform_fees: 0,
+//         raw_data: shopifyOrder,
+//         created_at: shopifyOrder.created_at,
+//         updated_at: shopifyOrder.updated_at,
+//       };
+
+//       return shopifyOrder.line_items.map((item) => {
+//         const orderItem: OrderItem = {
+//           id: item.id.toString(),
+//           order_id: order.id,
+//           sku: item.sku || "",
+//           title: item.title,
+//           quantity: item.quantity,
+//           unit_price: parseFloat(item.price),
+//           unit_cost: 0,
+//           created_at: shopifyOrder.created_at,
+//           updated_at: shopifyOrder.updated_at,
+//         };
+
+//         return calculatePNLRow(order, orderItem);
+//       });
+//     });
+
+//     console.log("Sending to sheets:", pnlRows);
+//     await sheetsClient.addOrUpdateRows(pnlRows);
+//     console.log("Successfully wrote to Google Sheets");
+//   } catch (error) {
+//     console.error("Error:", error);
+//   }
+// }
+
+// testShopifyToSheets();

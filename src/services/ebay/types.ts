@@ -16,7 +16,14 @@ export const EbayOrderSchema = z.object({
   orderId: z.string(),
   creationDate: z.string(),
   lastModifiedDate: z.string(),
-  orderFulfillmentStatus: z.string(),
+  orderFulfillmentStatus: z.enum([
+    "pending",
+    "processing",
+    "shipped",
+    "delivered",
+    "cancelled",
+    "refunded",
+  ]),
   orderPaymentStatus: z.string(),
   seller: z.object({
     username: z.string(),

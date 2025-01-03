@@ -1,3 +1,13 @@
+export type OrderStatus =
+  | "pending"
+  | "processing"
+  | "shipped"
+  | "delivered"
+  | "cancelled"
+  | "refunded";
+export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
+export type ShippingStatus = "pending" | "in_transit" | "delivered" | "exception" | "cancelled";
+
 export interface Order {
   id: string;
   platform: "shopify" | "walmart" | "ebay";
@@ -5,7 +15,9 @@ export interface Order {
   order_date: string;
   order_number: string;
   customer_email: string | null;
-  order_status: string;
+  order_status: OrderStatus;
+  payment_status: PaymentStatus | null;
+  payment_date: string | null;
   total_amount: number;
   shipping_amount: number | null;
   tax_amount: number | null;
@@ -41,4 +53,25 @@ export interface ShippingRecord {
   raw_data: any;
   created_at: string;
   updated_at: string;
+}
+
+export interface AuditLog {
+  id: string;
+  table_name: string;
+  record_id: string;
+  action: "insert" | "update" | "delete";
+  old_data: any | null;
+  new_data: any | null;
+  user_id: string | null;
+  timestamp: string;
+}
+
+export interface ErrorLog {
+  id: string;
+  service: string;
+  error_type: string;
+  error_message: string;
+  error_data: any | null;
+  resolved: boolean;
+  created_at: string;
 }

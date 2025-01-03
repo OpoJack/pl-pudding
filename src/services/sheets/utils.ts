@@ -22,8 +22,14 @@ export function calculatePNLRow(
       otherFees = orderItem.quantity * orderItem.unit_price * 0.15; // 15% referral fee
       break;
     case "ebay":
-      // eBay has final value fees
-      otherFees = orderItem.quantity * orderItem.unit_price * 0.12; // Example 12% FVF
+      // eBay's standard final value fee is 12.9% + $0.30 per order
+      const fvfRate = 0.129;
+      const perOrderFee = 0.3;
+      otherFees = orderItem.quantity * orderItem.unit_price * fvfRate + perOrderFee * itemRatio;
+
+      // Add category-specific fees if needed based on SKU/category
+      // const categoryFee = getCategoryFee(orderItem.sku);
+      // otherFees += categoryFee;
       break;
     case "shopify":
       // Shopify has payment processing fees
@@ -50,5 +56,6 @@ export function calculatePNLRow(
     shipping,
     cost,
     profit,
+    shippingStatus: shippingRecord?.status || "Unknown",
   };
 }

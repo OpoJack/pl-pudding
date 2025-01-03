@@ -44,6 +44,7 @@ export class GoogleSheetsClient {
           "Shipping",
           "Cost",
           "Profit",
+          "Shipping Status",
         ],
       });
 
@@ -52,7 +53,7 @@ export class GoogleSheetsClient {
 
       // Format headers
       //   const headerRow = sheet.getRows({ offset: 0, limit: 1 });
-      for (let i = 0; i < 11; i++) {
+      for (let i = 0; i < 12; i++) {
         const cell = sheet.getCell(0, i);
         cell.textFormat = { bold: true };
         cell.backgroundColor = { red: 0.9, green: 0.9, blue: 0.9 };
@@ -118,6 +119,7 @@ export class GoogleSheetsClient {
           Shipping: row.shipping,
           Cost: row.cost,
           Profit: profitFormula,
+          "Shipping Status": row.shippingStatus,
         });
       }
     }
