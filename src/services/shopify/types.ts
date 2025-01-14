@@ -7,7 +7,7 @@ export const ShopifyOrderItemSchema = z.object({
   title: z.string(),
   quantity: z.number(),
   price: z.string(),
-  sku: z.string().optional(),
+  sku: z.string().nullable().optional(),
 });
 
 export const ShopifyOrderSchema = z.object({

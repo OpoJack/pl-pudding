@@ -13,7 +13,7 @@ const ShipStationAddressSchema = z.object({
 });
 
 const ShipStationItemSchema = z.object({
-  lineItemKey: z.string(),
+  lineItemKey: z.string().nullable(),
   sku: z.string().nullable(),
   name: z.string(),
   quantity: z.number(),

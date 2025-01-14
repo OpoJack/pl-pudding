@@ -5,6 +5,7 @@ export function mapShipstationStatus(status: string): OrderStatus {
     case "awaiting_payment":
       return "pending";
     case "awaiting_shipment":
+      return "pending";
     case "pending_fulfillment":
       return "processing";
     case "shipped":
